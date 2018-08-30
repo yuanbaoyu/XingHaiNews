@@ -1,0 +1,143 @@
+apply plugin: 'com.android.application'
+
+def configInfo = rootProject.ext.android
+def libraries = rootProject.ext.dependencies
+
+def flavor_dimensions_app = "app"
+
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+// Initializes a new Properties() object called keystoreProperties.
+def keystoreProperties = new Properties()
+// Loads the keystore.properties file into the keystoreProperties object.
+keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+
+//定义时间
+def releaseTime() {
+    return new Date().format("yyyyMMdd HH:mm:ss")
+}
+
+android {
+    compileSdkVersion 28
+    defaultConfig {
+        applicationId "com.xinghai.news"
+        minSdkVersion configInfo.minSdkVersion
+        targetSdkVersion configInfo.targetSdkVersion
+        versionCode configInfo.versionCode
+        versionName configInfo.versionName
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        //配置方法数超过 64K 的应用
+        multiDexEnabled true
+    }
+
+    signingConfigs {
+        release {
+            storeFile file(keystoreProperties['storeFile'])
+            storePassword keystoreProperties['storePassword']
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+        }
+    }
+
+    buildTypes {
+        release {
+            //启用代码压缩
+            minifyEnabled true
+            //启用资源压缩
+            shrinkResources true
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            //自定义apk名称
+            applicationVariants.all { variant ->
+                variant.outputs.all { output ->
+                    def outputFile = output.outputFile
+                    def fileName
+                    if (outputFile != null && outputFile.name.endsWith('.apk')) {
+                        if (variant.buildType.name.equals('release')) {
+                            fileName = "xinghai_${variant.flavorName}_${variant.mergedFlavor.versionName}" +
+                                    "_" + releaseTime() + "_release.apk"
+                        } else if (variant.buildType.name.equals('debug')) {
+                            fileName = "xinghai_${variant.flavorName}_${variant.mergedFlavor.versionName}" +
+                                    "_" + releaseTime() + "_debug.apk"
+                        }
+                        outputFileName = fileName
+                    }
+                }
+            }
+        }
+
+        debug {
+            applicationIdSuffix ".debug"
+            ext.alwaysUpdateBuildId = false
+        }
+    }
+
+    dexOptions {
+        // Sets the maximum number of DEX processes
+        // that can be started concurrently.
+        maxProcessCount 8
+        // Sets the maximum memory allocation pool size
+        // for the dex operation.
+        javaMaxHeapSize "2g"
+        // Enables Gradle to pre-dex library dependencies.
+        preDexLibraries true
+    }
+
+    lintOptions {
+        // Turns off checks for the issue IDs you specify.
+        disable 'TypographyFractions', 'TypographyQuotes'
+        // Turns on checks for the issue IDs you specify. These checks are in
+        // addition to the default lint checks.
+        enable 'RtlHardcoded', 'RtlCompat', 'RtlEnabled'
+        // To enable checks for only a subset of issue IDs and ignore all others,
+        // list the issue IDs with the 'check' property instead. This property overrides
+        // any issue IDs you enable or disable using the properties above.
+        check 'NewApi', 'InlinedApi'
+        // If set to true, turns off analysis progress reporting by lint.
+        quiet true
+        // if set to true (default), stops the build if errors are found.
+        abortOnError false
+        // if true, only report errors.
+        ignoreWarnings true
+    }
+
+    flavorDimensions flavor_dimensions_app
+    productFlavors {
+        charge {
+            dimension flavor_dimensions_app
+            minSdkVersion configInfo.minSdkVersion
+            applicationIdSuffix ".charge"
+            versionNameSuffix "-charge"
+            //限定仅支持中文 和 xxhdpi
+            resConfigs "zh", "xxhdpi"
+            versionCode configInfo.chargeVersionCode
+            versionName configInfo.chargeVersionName
+        }
+
+        main {
+            versionCode configInfo.versionCode
+            versionName configInfo.versionName
+        }
+    }
+
+    //忽略指定条件的构建
+    variantFilter { variant ->
+        def names = variant.flavors *.name
+        // To check for a certain build type, use variant.buildType.name == "<buildType>"
+        if (names.contains("free")) {
+            // Gradle ignores any variants that satisfy the conditions above.
+            setIgnore(true)
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation libraries.appcompatV7
+    implementation libraries.design
+    implementation libraries.constraintLayout
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'com.android.support.test:runner:1.0.2'
+    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+}
